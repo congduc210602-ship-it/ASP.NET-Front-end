@@ -1,9 +1,5 @@
 import React, { useState, useEffect } from "react";
-
-// @mui material components
 import Grid from "@mui/material/Grid";
-
-// Material Dashboard 2 React components
 import MDBox from "components/MDBox";
 
 // Material Dashboard 2 React example components
@@ -14,18 +10,7 @@ import ReportsBarChart from "examples/Charts/BarCharts/ReportsBarChart";
 import ReportsLineChart from "examples/Charts/LineCharts/ReportsLineChart";
 import ComplexStatisticsCard from "examples/Cards/StatisticsCards/ComplexStatisticsCard";
 
-// Data (Sử dụng data mẫu của template cho các biểu đồ)
-import reportsBarChartData from "layouts/dashboard/data/reportsBarChartData";
-import reportsLineChartData from "layouts/dashboard/data/reportsLineChartData";
-
-// Dashboard components
-import Projects from "layouts/dashboard/components/Projects";
-import OrdersOverview from "layouts/dashboard/components/OrdersOverview";
-
 function Dashboard() {
-  const { sales, tasks } = reportsLineChartData;
-
-  // === STATE LƯU TRỮ DỮ LIỆU THẬT ===
   const [stats, setStats] = useState({
     productsCount: 0,
     usersCount: 0,
@@ -33,39 +18,75 @@ function Dashboard() {
     totalRevenue: 0,
   });
 
-  // === GỌI API LẤY THỐNG KÊ KHI VÀO TRANG ===
+  const [chartData, setChartData] = useState({
+    visits: { labels: ["M", "T", "W", "T", "F", "S", "S"], datasets: { label: "Truy cập", data: [50, 40, 300, 220, 500, 250, 400] } },
+    sales: { labels: ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], datasets: { label: "Doanh số", data: [0, 0, 0, 0, 0, 0, 0, 0, 0] } },
+    completedOrders: { labels: ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], datasets: { label: "Đơn hàng", data: [0, 0, 0, 0, 0, 0, 0, 0, 0] } },
+  });
+
   useEffect(() => {
-    fetchDashboardStats();
+    fetchDashboardData();
   }, []);
 
-  const fetchDashboardStats = async () => {
+  const fetchDashboardData = async () => {
     try {
-      // 1. Tổng Sản Phẩm (Đã đúng)
-      const prodRes = await fetch("http://localhost:8900/api/catalog/admin/products/count");
-      const prodData = prodRes.ok ? await prodRes.json() : 0;
+      const API_URL = "https://asp-net-2.onrender.com/api";
+      // LẤY TOKEN ĐỂ GỌI API BẢO MẬT
+      const user = JSON.parse(localStorage.getItem("user"));
+      const token = user?.token;
 
-      // 2. Tổng Người Dùng (SỬA LẠI ĐƯỜNG DẪN Ở ĐÂY)
-      // Thêm /admin vào trước /users
-      const userRes = await fetch("http://localhost:8900/api/accounts/admin/users/dashboard/count");
-      const userData = userRes.ok ? await userRes.json() : 0;
+      const headers = {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      };
 
-      // 3. Tổng Đơn Hàng (Đã đúng theo OrderController bạn gửi)
-      const orderRes = await fetch("http://localhost:8900/api/shop/orders/dashboard/count");
-      const orderData = orderRes.ok ? await orderRes.json() : 0;
+      // 1. Gọi đồng thời các API thống kê
+      const [prodRes, userRes, revenueRes, ordersRes] = await Promise.all([
+        fetch(`${API_URL}/Products`),
+        fetch(`${API_URL}/Users`, { headers }), // Cần token để xem ds User
+        fetch(`${API_URL}/Admin/reports/revenue`, { headers }), // Cần token
+        fetch(`${API_URL}/customer/orders`, { headers }) // API lấy tất cả đơn hàng
+      ]);
 
-      // 4. Tổng Doanh Thu (Đã đúng theo OrderController bạn gửi)
-      const revenueRes = await fetch("http://localhost:8900/api/shop/orders/dashboard/revenue");
-      const revenueData = revenueRes.ok ? await revenueRes.json() : 0;
+      const prodData = await prodRes.json();
+      const userData = await userRes.json();
+      const revenueData = revenueRes.ok ? await revenueRes.json() : { totalOrders: 0, totalRevenue: 0 };
+      const ordersData = ordersRes.ok ? await ordersRes.json() : [];
 
-
+      // Cập nhật thẻ thống kê (Kiểm tra cả viết hoa và viết thường)
       setStats({
-        productsCount: prodData,
-        usersCount: userData,
-        ordersCount: orderData,
-        totalRevenue: revenueData,
+        productsCount: prodData.length || 0,
+        usersCount: userData.length || 0,
+        ordersCount: revenueData.totalOrders || revenueData.TotalOrders || ordersData.length || 0,
+        totalRevenue: revenueData.totalRevenue || revenueData.TotalRevenue || 0,
       });
+
+      // 2. XỬ LÝ DỮ LIỆU BIỂU ĐỒ TỪ DANH SÁCH ĐƠN HÀNG THẬT
+      if (ordersData.length > 0) {
+        // Mảng 12 tháng khởi tạo bằng 0
+        const monthlySales = Array(9).fill(0); // Từ tháng 4 (Apr) đến tháng 12 (Dec)
+        const monthlyOrders = Array(9).fill(0);
+
+        ordersData.forEach(order => {
+          const date = new Date(order.createdAt || order.CreatedAt);
+          const monthIndex = date.getMonth(); // 0 = Jan, 3 = Apr
+
+          if (monthIndex >= 3) { // Chỉ lấy từ tháng 4 trở đi theo Labels của biểu đồ
+            const indexInArray = monthIndex - 3;
+            monthlyOrders[indexInArray] += 1;
+            monthlySales[indexInArray] += (order.totalAmount || order.TotalAmount || 0);
+          }
+        });
+
+        setChartData(prev => ({
+          ...prev,
+          sales: { ...prev.sales, datasets: { ...prev.sales.datasets, data: monthlySales } },
+          completedOrders: { ...prev.completedOrders, datasets: { ...prev.completedOrders.datasets, data: monthlyOrders } }
+        }));
+      }
+
     } catch (error) {
-      console.error("Lỗi khi tải dữ liệu Dashboard:", error);
+      console.error("Lỗi Dashboard:", error);
     }
   };
 
@@ -73,50 +94,20 @@ function Dashboard() {
     <DashboardLayout>
       <DashboardNavbar />
       <MDBox py={3}>
-        {/* === HÀNG 1: 4 Ô THỐNG KÊ (DỮ LIỆU THẬT TỪ SQL) === */}
         <Grid container spacing={3}>
           <Grid item xs={12} md={6} lg={3}>
             <MDBox mb={1.5}>
-              <ComplexStatisticsCard
-                color="success"
-                icon="store"
-                title="Tổng Sản Phẩm"
-                count={stats.productsCount}
-                percentage={{
-                  color: "success",
-                  amount: "Cập nhật",
-                  label: " real-time",
-                }}
-              />
+              <ComplexStatisticsCard color="dark" icon="store" title="Tổng Sản Phẩm" count={stats.productsCount} />
             </MDBox>
           </Grid>
           <Grid item xs={12} md={6} lg={3}>
             <MDBox mb={1.5}>
-              <ComplexStatisticsCard
-                icon="leaderboard"
-                title="Người Dùng"
-                count={stats.usersCount}
-                percentage={{
-                  color: "success",
-                  amount: "Cập nhật",
-                  label: " real-time",
-                }}
-              />
+              <ComplexStatisticsCard icon="leaderboard" title="Người Dùng" count={stats.usersCount} />
             </MDBox>
           </Grid>
           <Grid item xs={12} md={6} lg={3}>
             <MDBox mb={1.5}>
-              <ComplexStatisticsCard
-                color="warning"
-                icon="shopping_cart"
-                title="Đơn Hàng"
-                count={stats.ordersCount}
-                percentage={{
-                  color: "error",
-                  amount: "Cập nhật",
-                  label: " real-time",
-                }}
-              />
+              <ComplexStatisticsCard color="success" icon="shopping_cart" title="Đơn Hàng" count={stats.ordersCount} />
             </MDBox>
           </Grid>
           <Grid item xs={12} md={6} lg={3}>
@@ -126,71 +117,30 @@ function Dashboard() {
                 icon="attach_money"
                 title="Doanh Thu"
                 count={new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(stats.totalRevenue)}
-                percentage={{
-                  color: "success",
-                  amount: "Cập nhật",
-                  label: " real-time",
-                }}
               />
             </MDBox>
           </Grid>
         </Grid>
 
-        {/* === HÀNG 2: 3 BIỂU ĐỒ (SỬ DỤNG DATA MẪU) === */}
         <MDBox mt={4.5}>
           <Grid container spacing={3}>
             <Grid item xs={12} md={6} lg={4}>
               <MDBox mb={3}>
-                <ReportsBarChart
-                  color="info"
-                  title="Lượt truy cập"
-                  description="Hiệu suất chiến dịch gần nhất"
-                  date="cập nhật 2 ngày trước"
-                  chart={reportsBarChartData}
-                />
+                <ReportsBarChart color="info" title="Lượt truy cập" chart={chartData.visits} date="Cập nhật real-time" />
               </MDBox>
             </Grid>
             <Grid item xs={12} md={6} lg={4}>
               <MDBox mb={3}>
-                <ReportsLineChart
-                  color="success"
-                  title="Doanh số hằng ngày"
-                  description={
-                    <>
-                      (<strong>+15%</strong>) tăng trưởng doanh số hôm nay.
-                    </>
-                  }
-                  date="cập nhật 4 phút trước"
-                  chart={sales}
-                />
+                <ReportsLineChart color="success" title="Doanh số hằng tháng" chart={chartData.sales} date="Dữ liệu từ đơn hàng" />
               </MDBox>
             </Grid>
             <Grid item xs={12} md={6} lg={4}>
               <MDBox mb={3}>
-                <ReportsLineChart
-                  color="dark"
-                  title="Đơn hàng hoàn thành"
-                  description="Hiệu suất chiến dịch gần nhất"
-                  date="vừa cập nhật"
-                  chart={tasks}
-                />
+                <ReportsLineChart color="dark" title="Đơn hàng thành công" chart={chartData.completedOrders} date="Dữ liệu từ đơn hàng" />
               </MDBox>
             </Grid>
           </Grid>
         </MDBox>
-
-        {/* === HÀNG 3: BẢNG DỰ ÁN VÀ TỔNG QUAN ĐƠN HÀNG (GIỮ NGUYÊN NHƯ CŨ CỦA BẠN) === */}
-        <MDBox>
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6} lg={8}>
-              <Projects />
-            </Grid>
-            <Grid item xs={12} md={6} lg={4}>
-              <OrdersOverview />
-            </Grid>
-          </Grid>
-        </MDBox>
-
       </MDBox>
       <Footer />
     </DashboardLayout>

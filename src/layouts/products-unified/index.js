@@ -7,22 +7,19 @@ import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import Divider from "@mui/material/Divider";
-import Select from "@mui/material/Select"; // Thêm Select
-import MenuItem from "@mui/material/MenuItem"; // Thêm MenuItem
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
 
-// Material Dashboard 2 React components
 import MDBox from "components/MDBox";
 import MDTypography from "components/MDTypography";
 import MDAvatar from "components/MDAvatar";
 import MDButton from "components/MDButton";
 import MDInput from "components/MDInput";
 
-// Material Dashboard 2 React example components
 import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "examples/Navbars/DashboardNavbar";
 import DataTable from "examples/Tables/DataTable";
 
-// Import API Sản phẩm
 import {
   getAllProducts,
   addProduct,
@@ -31,32 +28,28 @@ import {
   updateProduct,
 } from "../../services/ProductService";
 
-// Import API Danh mục (MỚI THÊM)
 import { getAllCategories } from "../../services/CategoryService";
 
 function ProductsUnified() {
   const [products, setProducts] = useState([]);
-  const [categoriesList, setCategoriesList] = useState([]); // State chứa danh sách danh mục
+  const [categoriesList, setCategoriesList] = useState([]);
 
-  // === STATE QUẢN LÝ POPUP THÊM/SỬA ===
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentProductId, setCurrentProductId] = useState(null);
   const [formData, setFormData] = useState({
-    productName: "", price: 0, description: "", category: "", availability: 0, imageUrl: "",
+    productName: "", price: 0, description: "", categoryId: "", availability: 0, imageUrl: "",
   });
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // === STATE QUẢN LÝ POPUP XEM CHI TIẾT ===
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [viewProduct, setViewProduct] = useState(null);
 
-  // === GỌI API LẤY DỮ LIỆU KHI VÀO TRANG ===
   useEffect(() => {
     fetchProducts();
-    fetchCategories(); // Gọi thêm API lấy danh mục
+    fetchCategories();
   }, []);
 
   const fetchProducts = async () => {
@@ -68,7 +61,6 @@ function ProductsUnified() {
     }
   };
 
-  // Hàm lấy danh sách danh mục từ Category Service
   const fetchCategories = async () => {
     try {
       const data = await getAllCategories();
@@ -78,18 +70,16 @@ function ProductsUnified() {
     }
   };
 
-  // === HÀM XỬ LÝ POPUP XEM CHI TIẾT ===
   const handleOpenViewModal = (item) => {
     setViewProduct(item);
     setIsViewModalOpen(true);
   };
   const handleCloseViewModal = () => setIsViewModalOpen(false);
 
-  // === HÀM XỬ LÝ POPUP THÊM/SỬA ===
   const handleOpenAddModal = () => {
     setIsEditing(false);
     setCurrentProductId(null);
-    setFormData({ productName: "", price: 0, description: "", category: "", availability: 0, imageUrl: "" });
+    setFormData({ productName: "", price: 0, description: "", categoryId: "", availability: 0, imageUrl: "" });
     setSelectedFile(null);
     setPreviewUrl("");
     setIsModalOpen(true);
@@ -99,11 +89,15 @@ function ProductsUnified() {
     setIsEditing(true);
     setCurrentProductId(item.id);
     setFormData({
-      productName: item.productName, price: item.price, description: item.description || "",
-      category: item.category, availability: item.availability, imageUrl: item.imageUrl || "",
+      productName: item.name, // Đồng bộ: backend trả 'name'
+      price: item.price || 0,
+      description: item.description || "",
+      categoryId: item.category?.id || item.categoryId || "",
+      availability: item.availability || 0,
+      imageUrl: item.avatar || "", // Đồng bộ: backend trả 'avatar'
     });
     setSelectedFile(null);
-    setPreviewUrl(item.imageUrl || "");
+    setPreviewUrl(item.avatar || "");
     setIsModalOpen(true);
   };
 
@@ -121,7 +115,7 @@ function ProductsUnified() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.category) {
+    if (!formData.categoryId) {
       alert("Vui lòng chọn danh mục cho sản phẩm!");
       return;
     }
@@ -132,9 +126,20 @@ function ProductsUnified() {
       if (selectedFile) {
         finalImageUrl = await uploadProductImage(selectedFile);
       }
-      const productDataToSave = { ...formData, imageUrl: finalImageUrl };
+
+      // Đồng bộ chuẩn payload gửi lên Backend
+      const productDataToSave = {
+        name: formData.productName,
+        categoryId: parseInt(formData.categoryId),
+        description: formData.description,
+        avatar: finalImageUrl,
+        price: parseFloat(formData.price),       // Đã thêm gửi Giá
+        availability: parseInt(formData.availability), // Đã thêm gửi Tồn kho
+        isActive: true
+      };
 
       if (isEditing) {
+        productDataToSave.id = currentProductId;
         await updateProduct(currentProductId, productDataToSave);
         alert("Cập nhật sản phẩm thành công!");
       } else {
@@ -144,7 +149,7 @@ function ProductsUnified() {
       handleCloseModal();
       fetchProducts();
     } catch (error) {
-      alert("Thao tác thất bại. Vui lòng kiểm tra lại log!");
+      alert("Thao tác thất bại. Vui lòng kiểm tra lại F12!");
     } finally {
       setIsSubmitting(false);
     }
@@ -162,7 +167,6 @@ function ProductsUnified() {
     }
   };
 
-  // === KHAI BÁO CỘT VÀ HÀNG CỦA DATA TABLE ===
   const columns = [
     { Header: "Hình ảnh", accessor: "image", width: "10%", align: "center" },
     { Header: "Tên sản phẩm", accessor: "name", width: "25%", align: "left" },
@@ -172,17 +176,33 @@ function ProductsUnified() {
     { Header: "Hành động", accessor: "action", align: "center" },
   ];
 
+  // ĐỒNG BỘ: Sử dụng item.name, item.avatar thay vì productName, imageUrl
+  const BACKEND_URL = "https://asp-net-2.onrender.com";
+
   const rows = products.map((item) => ({
     image: (
-      <MDAvatar src={item.imageUrl || "https://placehold.co/150"} alt={item.productName} size="sm" variant="rounded" />
+      <MDAvatar
+        // ĐỒNG BỘ ẢNH: Nếu link ảnh bắt đầu bằng http (link ngoài) thì giữ nguyên
+        // Nếu bắt đầu bằng / (link cục bộ), phải ghép với BACKEND_URL
+        src={
+          item.avatar
+            ? (item.avatar.startsWith("http") ? item.avatar : `${BACKEND_URL}${item.avatar}`)
+            : "https://placehold.co/150"
+        }
+        alt={item.name}
+        size="sm"
+        variant="rounded"
+      />
     ),
-    name: <MDTypography display="block" variant="button" fontWeight="medium">{item.productName}</MDTypography>,
-    category: <MDTypography variant="caption" color="text" fontWeight="medium">{item.category}</MDTypography>,
-    price: <MDTypography variant="caption" color="text" fontWeight="medium">${item.price}</MDTypography>,
-    availability: <MDTypography variant="caption" color="text" fontWeight="medium">{item.availability}</MDTypography>,
+    name: <MDTypography display="block" variant="button" fontWeight="medium">{item.name}</MDTypography>,
+    category: <MDTypography variant="caption" color="text" fontWeight="medium">
+      {/* Đảm bảo fallback cuối cùng là một chuỗi chữ, không phải biến item.category */}
+      {item.category?.name || "Chưa phân loại"}
+    </MDTypography>,
+    price: <MDTypography variant="caption" color="text" fontWeight="medium">${item.price || 0}</MDTypography>,
+    availability: <MDTypography variant="caption" color="text" fontWeight="medium">{item.availability || 0}</MDTypography>,
     action: (
       <MDBox display="flex" alignItems="center">
-        {/* === NÚT XEM CHI TIẾT === */}
         <MDButton variant="text" color="success" onClick={() => handleOpenViewModal(item)}>
           <Icon>visibility</Icon>&nbsp;Xem
         </MDButton>
@@ -217,7 +237,7 @@ function ProductsUnified() {
         </Grid>
       </MDBox>
 
-      {/* === 1. POPUP THÊM / SỬA SẢN PHẨM === */}
+      {/* POPUP THÊM / SỬA */}
       <Dialog open={isModalOpen} onClose={handleCloseModal} maxWidth="sm" fullWidth>
         <DialogTitle>{isEditing ? "Cập Nhật Sản Phẩm" : "Tạo Sản Phẩm Mới"}</DialogTitle>
         <MDBox component="form" role="form" onSubmit={handleSubmit}>
@@ -240,12 +260,11 @@ function ProductsUnified() {
             <MDBox mb={2}><MDInput type="number" label="Giá (Price)" name="price" value={formData.price} onChange={handleChange} fullWidth required /></MDBox>
             <MDBox mb={2}><MDInput type="text" label="Mô tả (description)" name="description" value={formData.description} onChange={handleChange} fullWidth /></MDBox>
 
-            {/* ĐÂY LÀ PHẦN DROPDOWN DANH MỤC ĐÃ ĐƯỢC NÂNG CẤP */}
             <MDBox mb={2}>
               <MDTypography variant="caption" color="text" fontWeight="regular">Danh mục (Category) *</MDTypography>
               <Select
-                name="category"
-                value={formData.category}
+                name="categoryId"
+                value={formData.categoryId}
                 onChange={handleChange}
                 fullWidth
                 displayEmpty
@@ -254,8 +273,8 @@ function ProductsUnified() {
               >
                 <MenuItem value="" disabled>-- Chọn Danh Mục --</MenuItem>
                 {categoriesList.map((cat) => (
-                  <MenuItem key={cat.id} value={cat.categoryName}>
-                    {cat.categoryName}
+                  <MenuItem key={cat.id} value={cat.id}>
+                    {cat.name}
                   </MenuItem>
                 ))}
               </Select>
@@ -272,7 +291,7 @@ function ProductsUnified() {
         </MDBox>
       </Dialog>
 
-      {/* === 2. POPUP XEM CHI TIẾT SẢN PHẨM === */}
+      {/* POPUP XEM CHI TIẾT */}
       <Dialog open={isViewModalOpen} onClose={handleCloseViewModal} maxWidth="sm" fullWidth>
         <DialogTitle>Chi Tiết Sản Phẩm</DialogTitle>
         <DialogContent dividers>
@@ -280,28 +299,30 @@ function ProductsUnified() {
             <MDBox>
               <MDBox display="flex" justifyContent="center" mb={3}>
                 <img
-                  src={viewProduct.imageUrl || "https://placehold.co/150"}
-                  alt={viewProduct.productName}
+                  src={viewProduct.avatar || "https://placehold.co/150"}
+                  alt={viewProduct.name}
                   style={{ width: "200px", height: "200px", objectFit: "cover", borderRadius: "12px", boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}
                 />
               </MDBox>
 
               <MDTypography variant="h5" fontWeight="medium" textAlign="center" mb={3} color="info">
-                {viewProduct.productName}
+                {viewProduct.name}
               </MDTypography>
 
               <Grid container spacing={2}>
                 <Grid item xs={6}>
                   <MDTypography variant="button" color="text" fontWeight="bold">Danh mục:</MDTypography>
-                  <MDTypography variant="button" color="text" ml={1}>{viewProduct.category}</MDTypography>
+                  <MDTypography variant="button" color="text" ml={1}>
+                    {viewProduct.category?.name || viewProduct.category?.categoryName || "Trống"}
+                  </MDTypography>
                 </Grid>
                 <Grid item xs={6}>
                   <MDTypography variant="button" color="text" fontWeight="bold">Giá bán:</MDTypography>
-                  <MDTypography variant="button" color="text" ml={1}>${viewProduct.price}</MDTypography>
+                  <MDTypography variant="button" color="text" ml={1}>${viewProduct.price || 0}</MDTypography>
                 </Grid>
                 <Grid item xs={6}>
                   <MDTypography variant="button" color="text" fontWeight="bold">Tồn kho:</MDTypography>
-                  <MDTypography variant="button" color="text" ml={1}>{viewProduct.availability}</MDTypography>
+                  <MDTypography variant="button" color="text" ml={1}>{viewProduct.availability || 0}</MDTypography>
                 </Grid>
                 <Grid item xs={6}>
                   <MDTypography variant="button" color="text" fontWeight="bold">Mã ID:</MDTypography>

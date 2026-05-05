@@ -10,10 +10,14 @@ import { useMaterialUIController, setMiniSidenav } from "context";
 import brandWhite from "assets/images/logo-ct.png";
 import brandDark from "assets/images/logo-ct-dark.png";
 
+// Import AuthContext
+import { useAuth } from "context/AuthContext";
+
 // Trang khách hàng
 import Home from "customer/pages/Home";
 import ProductDetail from "customer/pages/ProductDetail";
 import Cart from "customer/pages/Cart";
+import Checkout from "customer/pages/Checkout";
 
 export default function App() {
   const [controller, dispatch] = useMaterialUIController();
@@ -22,22 +26,35 @@ export default function App() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
-  const isAuthenticated = localStorage.getItem("user");
+  // 1. LẤY USER TỪ CONTEXT
+  const { currentUser: user } = useAuth();
 
-  // Kiểm tra xem có đang ở trang admin hay không
-  const isAdminPath = pathname.startsWith("/admin");
+  // 2. LOGIC PHÂN BIỆT ĐƯỜNG DẪN (QUAN TRỌNG)
+  // Kiểm tra xem có phải là trang Đăng nhập/Đăng ký không
+  const isAuthPath = pathname.startsWith("/authentication");
+
+  // Chỉ coi là Admin Path nếu nó nằm trong routes.js HOẶC bắt đầu bằng /admin 
+  // NHƯNG phải loại trừ các trang Authentication
+  const isAdminPath = (pathname.startsWith("/admin") || routes.some(r => r.route === pathname)) && !isAuthPath;
 
   useEffect(() => {
-    // Nếu vào /admin khơi khơi thì đẩy vào dashboard
+    // Tự động chuyển hướng /admin vào dashboard
     if (pathname === "/admin") {
       navigate("/admin/dashboard");
     }
 
-    // Bảo vệ các trang Admin: Chưa login mà vào /admin/* thì đá về Sign-in
-    if (isAdminPath && !isAuthenticated) {
-      navigate("/authentication/sign-in");
+    // CHỐT CHẶN BẢO VỆ TRANG ADMIN
+    if (isAdminPath) {
+      if (!user) {
+        // Nếu chưa đăng nhập: Đẩy về Sign-in
+        navigate("/authentication/sign-in");
+      } else if (user.role !== "admin") {
+        // Nếu đã đăng nhập nhưng không phải Admin (Staff/Customer): Đẩy về trang chủ
+        alert("Khu vực này chỉ dành cho Quản trị viên!");
+        navigate("/");
+      }
     }
-  }, [pathname, isAuthenticated, isAdminPath, navigate]);
+  }, [pathname, user, isAdminPath, navigate]);
 
   const handleOnMouseEnter = () => {
     if (miniSidenav && !onMouseEnter) {
@@ -64,12 +81,12 @@ export default function App() {
     <ThemeProvider theme={darkMode ? themeDark : theme}>
       <CssBaseline />
 
-      {/* CHỈ HIỂN THỊ SIDENAV KHI LÀ ADMIN PATH */}
-      {isAdminPath && (
+      {/* CHỈ HIỂN THỊ SIDENAV CHO ADMIN THẬT SỰ */}
+      {isAdminPath && user?.role === "admin" && (
         <Sidenav
           color={sidenavColor}
           brand={(transparentSidenav && !darkMode) || whiteSidenav ? brandDark : brandWhite}
-          brandName="Perfume Admin"
+          brandName="Coffee House Admin"
           routes={routes}
           onMouseEnter={handleOnMouseEnter}
           onMouseLeave={handleOnMouseLeave}
@@ -77,19 +94,16 @@ export default function App() {
       )}
 
       <Routes>
-        {/* 1. TRANG KHÁCH HÀNG (MẶC ĐỊNH) */}
+        {/* === CÁC TRANG KHÁCH HÀNG === */}
         <Route path="/" element={<Home />} />
-
-        {/* 2. TRANG CHI TIẾT SẢN PHẨM */}
         <Route path="/product/:id" element={<ProductDetail />} />
-
-        {/* 3. TRANG GIỎ HÀNG */}
         <Route path="/cart" element={<Cart />} />
+        <Route path="/checkout" element={<Checkout />} />
 
-        {/* 4. CÁC ROUTE ADMIN TỪ FILE ROUTES.JS */}
+        {/* === CÁC ROUTE TỰ ĐỘNG TỪ ROUTES.JS (Admin + Auth) === */}
         {getRoutes(routes)}
 
-        {/* 5. ĐIỀU HƯỚNG SAI SẼ VỀ TRANG CHỦ KHÁCH HÀNG */}
+        {/* === CÁC ĐƯỜNG DẪN LẠ SẼ VỀ TRANG CHỦ === */}
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </ThemeProvider>

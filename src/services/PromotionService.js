@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:8900/api/promotions";
+const API_BASE_URL = "https://asp-net-2.onrender.com/api/promotions";
 
 // Lấy danh sách mã giảm giá cho Admin
 export const getAllPromotions = async () => {

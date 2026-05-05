@@ -1,24 +1,28 @@
-const API_BASE_URL = "http://localhost:8900/api/accounts";
+const API_BASE_URL = "https://asp-net-2.onrender.com/api";
 
-export const login = async (userName, userPassword) => {
+export const login = async (email, password) => {
     try {
-        const response = await fetch(`${API_BASE_URL}/login`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userName, userPassword }),
-        });
+        // Vì Backend chưa có API Login riêng cho Admin, ta gọi API lấy danh sách User để so sánh
+        const response = await fetch(`${API_BASE_URL}/Users`);
+        if (!response.ok) throw new Error("Không thể kết nối đến máy chủ");
+        
+        const users = await response.json();
+        
+        // Tìm user có email và password khớp nhau
+        const user = users.find(u => u.email === userName && u.password === userPassword);
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || "Tài khoản hoặc mật khẩu không đúng!");
+        if (!user) {
+            throw new Error("Tài khoản hoặc mật khẩu không đúng!");
         }
 
-        const data = await response.json();
-
-        // Nếu đăng nhập thành công và là ADMIN
-        if (data.token) {
-            localStorage.setItem("user", JSON.stringify(data)); // Lưu thông tin user và token
-            return data;
+        // Kiểm tra quyền Admin (ASP.NET lưu chữ thường "admin")
+        if (user.role.toLowerCase() === "admin") {
+            const userData = { 
+                ...user, 
+                token: "fake-jwt-token-for-admin-session" // Giả lập token để UI không báo lỗi
+            };
+            localStorage.setItem("user", JSON.stringify(userData));
+            return userData;
         } else {
             throw new Error("Bạn không có quyền truy cập vào trang quản trị!");
         }

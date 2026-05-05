@@ -25,7 +25,9 @@ function CategoriesUnified() {
     const [categories, setCategories] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
-    const [formData, setFormData] = useState({ id: null, categoryName: "", description: "" });
+
+    // Đã loại bỏ hoàn toàn trường description
+    const [formData, setFormData] = useState({ id: null, name: "" });
     const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
@@ -39,14 +41,17 @@ function CategoriesUnified() {
 
     // Mở popup Thêm mới
     const handleOpenAdd = () => {
-        setFormData({ id: null, categoryName: "", description: "" });
+        setFormData({ id: null, name: "" });
         setIsEditing(false);
         setIsModalOpen(true);
     };
 
     // Mở popup Chỉnh sửa
     const handleOpenEdit = (category) => {
-        setFormData({ id: category.id, categoryName: category.categoryName, description: category.description || "" });
+        setFormData({
+            id: category.id,
+            name: category.name
+        });
         setIsEditing(true);
         setIsModalOpen(true);
     };
@@ -60,23 +65,30 @@ function CategoriesUnified() {
 
     // Xử lý Lưu (Thêm hoặc Sửa)
     const handleSave = async () => {
-        if (!formData.categoryName.trim()) {
+        if (!formData.name.trim()) {
             alert("Vui lòng nhập tên danh mục!");
             return;
         }
         setIsSaving(true);
         try {
+            // Payload chuẩn chỉ gửi Name lên API
+            const payloadToSave = {
+                name: formData.name
+            };
+
             if (isEditing) {
-                await updateCategory(formData.id, formData);
+                payloadToSave.id = formData.id;
+                await updateCategory(formData.id, payloadToSave);
                 alert("Cập nhật thành công!");
             } else {
-                await createCategory(formData);
+                await createCategory(payloadToSave);
                 alert("Thêm danh mục thành công!");
             }
             fetchCategories();
             handleCloseModal();
         } catch (error) {
-            alert("Có lỗi xảy ra, vui lòng thử lại!");
+            console.error("Lỗi:", error);
+            alert("Có lỗi xảy ra, vui lòng thử lại! Mở F12 để xem chi tiết.");
         } finally {
             setIsSaving(false);
         }
@@ -95,19 +107,17 @@ function CategoriesUnified() {
         }
     };
 
-    // Cấu hình cột cho DataTable
+    // Bỏ cột Mô Tả ra khỏi bảng và điều chỉnh lại độ rộng cột
     const columns = [
-        { Header: "ID", accessor: "id", width: "10%", align: "center" },
-        { Header: "Tên Danh Mục", accessor: "name", width: "30%", align: "left" },
-        { Header: "Mô Tả", accessor: "desc", align: "left" },
-        { Header: "Hành Động", accessor: "action", width: "20%", align: "center" },
+        { Header: "ID", accessor: "id", width: "15%", align: "center" },
+        { Header: "Tên Danh Mục", accessor: "name", width: "45%", align: "left" },
+        { Header: "Hành Động", accessor: "action", width: "40%", align: "center" },
     ];
 
-    // Đổ dữ liệu vào hàng
+    // Đổ dữ liệu vào hàng (Đã bỏ desc)
     const rows = categories.map((cat) => ({
         id: <MDTypography variant="caption" fontWeight="bold">{cat.id}</MDTypography>,
-        name: <MDTypography variant="subtitle2" fontWeight="medium">{cat.categoryName}</MDTypography>,
-        desc: <MDTypography variant="caption">{cat.description || "Không có mô tả"}</MDTypography>,
+        name: <MDTypography variant="subtitle2" fontWeight="medium">{cat.name}</MDTypography>,
         action: (
             <MDBox display="flex" justifyContent="center" alignItems="center">
                 <MDButton variant="text" color="info" onClick={() => handleOpenEdit(cat)}>
@@ -147,11 +157,9 @@ function CategoriesUnified() {
                 <DialogContent dividers>
                     <MDBox component="form" role="form">
                         <MDBox mb={2}>
-                            <MDInput type="text" label="Tên danh mục *" name="categoryName" value={formData.categoryName} onChange={handleInputChange} fullWidth />
+                            <MDInput type="text" label="Tên danh mục *" name="name" value={formData.name} onChange={handleInputChange} fullWidth />
                         </MDBox>
-                        <MDBox mb={2}>
-                            <MDInput type="text" label="Mô tả" name="description" value={formData.description} onChange={handleInputChange} fullWidth multiline rows={3} />
-                        </MDBox>
+                        {/* Đã xóa field nhập mô tả */}
                     </MDBox>
                 </DialogContent>
                 <DialogActions>
@@ -165,4 +173,4 @@ function CategoriesUnified() {
     );
 }
 
-export default CategoriesUnified;
+export default CategoriesUnified;   

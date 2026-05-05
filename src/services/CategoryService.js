@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:8900/api/categories/categories";
+const API_BASE_URL = "https://asp-net-2.onrender.com/api/Categories";
 
 export const getAllCategories = async () => {
     try {
@@ -34,7 +34,7 @@ export const updateCategory = async (id, category) => {
             body: JSON.stringify(category),
         });
         if (!response.ok) throw new Error("Lỗi khi cập nhật danh mục");
-        return await response.json();
+        return true; // ASP.NET PUT trả về 204 NoContent
     } catch (error) {
         console.error(error);
         throw error;
@@ -47,6 +47,7 @@ export const deleteCategory = async (id) => {
             method: "DELETE",
         });
         if (!response.ok) throw new Error("Lỗi khi xóa danh mục");
+        return true;
     } catch (error) {
         console.error(error);
         throw error;

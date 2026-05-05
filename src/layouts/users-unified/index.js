@@ -7,6 +7,8 @@ import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import Chip from "@mui/material/Chip";
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
 
 // Material Dashboard 2 React components
 import MDBox from "components/MDBox";
@@ -29,15 +31,13 @@ function UsersUnified() {
     const [currentUserId, setCurrentUserId] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Form state
+    // Form state đồng bộ 100% với Backend User.cs
     const [formData, setFormData] = useState({
-        userName: "",
-        userPassword: "",
-        firstName: "",
-        lastName: "",
+        name: "",
         email: "",
-        phoneNumber: "",
-        active: 1, // 1 là Hoạt động, 0 là Khóa
+        password: "",
+        role: "staff", // Mặc định là staff
+        isActive: true, // true là Hoạt động, false là Khóa
     });
 
     useEffect(() => {
@@ -45,14 +45,18 @@ function UsersUnified() {
     }, []);
 
     const fetchUsers = async () => {
-        const data = await getAllUsers();
-        setUsers(data);
+        try {
+            const data = await getAllUsers();
+            setUsers(data);
+        } catch (error) {
+            console.error("Lỗi lấy danh sách user:", error);
+        }
     };
 
     const handleOpenAddModal = () => {
         setIsEditing(false);
         setCurrentUserId(null);
-        setFormData({ userName: "", userPassword: "", firstName: "", lastName: "", email: "", phoneNumber: "", active: 1 });
+        setFormData({ name: "", email: "", password: "", role: "staff", isActive: true });
         setIsModalOpen(true);
     };
 
@@ -60,77 +64,50 @@ function UsersUnified() {
         setIsEditing(true);
         setCurrentUserId(user.id);
         setFormData({
-            userName: user.userName,
-            userPassword: "", // Không hiển thị pass cũ
-            firstName: user.userDetails?.firstName || "",
-            lastName: user.userDetails?.lastName || "",
-            email: user.userDetails?.email || "",
-            phoneNumber: user.userDetails?.phoneNumber || "",
-            active: user.active,
+            name: user.name || "",
+            email: user.email || "",
+            password: user.password || "", // Giữ nguyên password cũ để update không bị lỗi
+            role: user.role || "staff",
+            isActive: user.isActive,
         });
         setIsModalOpen(true);
     };
 
     const handleCloseModal = () => setIsModalOpen(false);
 
-    // === HÀM XỬ LÝ KHI GÕ PHÍM (CHẶN NHẬP CHỮ VÀO SĐT) ===
     const handleChange = (e) => {
         const { name, value } = e.target;
-
-        // Nếu đang gõ vào ô Số điện thoại
-        if (name === "phoneNumber") {
-            // Dùng Regex xóa bỏ mọi ký tự không phải là số (chặn chữ)
-            const onlyNums = value.replace(/[^0-9]/g, "");
-
-            // Khóa độ dài tối đa là 10 số
-            if (onlyNums.length <= 10) {
-                setFormData({ ...formData, [name]: onlyNums });
-            }
-            return; // Xong việc của số điện thoại thì dừng lại
-        }
-
-        // Các ô khác (Tên, Email...) thì cho nhập bình thường
         setFormData({ ...formData, [name]: value });
     };
 
-    // === HÀM XỬ LÝ KHI BẤM NÚT "TẠO TÀI KHOẢN" (RÀNG BUỘC DỮ LIỆU) ===
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        // Ràng buộc 1: Kiểm tra Số điện thoại phải đúng 10 số (nếu có nhập)
-        if (formData.phoneNumber && formData.phoneNumber.length < 10) {
-            alert("Lỗi: Số điện thoại phải có đủ 10 chữ số!");
-            return; // Chặn không cho gọi API
-        }
-
-        // Ràng buộc 2: Kiểm tra trùng Tên đăng nhập (Chỉ kiểm tra khi Thêm mới)
+        // Ràng buộc kiểm tra trùng Email (Chỉ kiểm tra khi Thêm mới)
         if (!isEditing) {
             const isDuplicate = users.some(
-                (user) => user.userName.toLowerCase() === formData.userName.toLowerCase()
+                (user) => user.email.toLowerCase() === formData.email.toLowerCase()
             );
             if (isDuplicate) {
-                alert("Lỗi: Tên đăng nhập này đã tồn tại! Vui lòng chọn tên khác.");
-                return; // Chặn không cho gọi API (để tránh lỗi 500 của Backend)
+                alert("Lỗi: Email này đã tồn tại! Vui lòng chọn email khác.");
+                return;
             }
         }
 
         setIsSubmitting(true);
 
-        // Format lại data để gửi xuống Backend (lồng UserDetails vào trong User)
+        // Payload gửi xuống Backend (Khớp chính xác với User.cs)
         const payload = {
-            userName: formData.userName,
-            userPassword: formData.userPassword,
-            active: formData.active,
-            userDetails: {
-                firstName: formData.firstName,
-                lastName: formData.lastName,
-                email: formData.email,
-                phoneNumber: formData.phoneNumber,
-            }
+            name: formData.name,
+            email: formData.email,
+            password: formData.password,
+            role: formData.role,
+            isActive: formData.isActive
         };
 
         try {
             if (isEditing) {
+                payload.id = currentUserId;
                 await updateUser(currentUserId, payload);
                 alert("Cập nhật thành công!");
             } else {
@@ -140,31 +117,35 @@ function UsersUnified() {
             handleCloseModal();
             fetchUsers();
         } catch (error) {
-            alert("Có lỗi xảy ra, vui lòng kiểm tra lại log!");
+            alert("Có lỗi xảy ra, vui lòng kiểm tra lại F12!");
+            console.error(error);
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    const handleToggleStatus = async (id, currentStatus) => {
-        const newStatus = currentStatus === 1 ? 0 : 1;
-        const confirmMsg = newStatus === 0 ? "Bạn muốn KHÓA tài khoản này?" : "Bạn muốn MỞ KHÓA tài khoản này?";
+    // Đổi trạng thái true/false
+    const handleToggleStatus = async (user) => {
+        const newStatus = !user.isActive; // Đảo ngược trạng thái
+        const confirmMsg = !newStatus ? "Bạn muốn KHÓA tài khoản này?" : "Bạn muốn MỞ KHÓA tài khoản này?";
+
         if (window.confirm(confirmMsg)) {
             try {
-                await toggleUserStatus(id, newStatus);
-                fetchUsers();
+                // Tạo một bản sao của user và cập nhật IsActive
+                const payload = { ...user, isActive: newStatus };
+                await updateUser(user.id, payload);
+                fetchUsers(); // Tải lại danh sách
             } catch (error) {
                 alert("Lỗi khi đổi trạng thái!");
             }
         }
     };
 
-    // Cấu hình DataTable
+    // Cấu hình DataTable gọn gàng hơn
     const columns = [
         { Header: "ID", accessor: "id", width: "10%", align: "center" },
-        { Header: "Tài khoản", accessor: "username", width: "20%", align: "left" },
-        { Header: "Họ Tên", accessor: "fullname", align: "left" },
-        { Header: "Email", accessor: "email", align: "left" },
+        { Header: "Họ Tên", accessor: "name", width: "25%", align: "left" },
+        { Header: "Email", accessor: "email", width: "25%", align: "left" },
         { Header: "Phân quyền", accessor: "role", align: "center" },
         { Header: "Trạng thái", accessor: "status", align: "center" },
         { Header: "Hành động", accessor: "action", align: "center" },
@@ -172,29 +153,22 @@ function UsersUnified() {
 
     const rows = users.map((user) => ({
         id: <MDTypography variant="caption" color="text" fontWeight="medium">#{user.id}</MDTypography>,
-        username: <MDTypography variant="button" fontWeight="medium">{user.userName}</MDTypography>,
-        fullname: <MDTypography variant="caption" color="text" fontWeight="medium">
-            {user.userDetails ? `${user.userDetails.lastName} ${user.userDetails.firstName}` : "Chưa cập nhật"}
-        </MDTypography>,
-        email: <MDTypography variant="caption" color="text" fontWeight="medium">
-            {user.userDetails?.email || "N/A"}
-        </MDTypography>,
-
+        name: <MDTypography variant="button" fontWeight="medium">{user.name}</MDTypography>,
+        email: <MDTypography variant="caption" color="text" fontWeight="medium">{user.email}</MDTypography>,
         role: (
             <MDBox ml={-1}>
                 <Chip
-                    label={user.role ? user.role.roleName : "USER"} // Nếu null thì mặc định hiện là USER
-                    color={user.role && user.role.roleName === "ADMIN" ? "info" : "secondary"} // Admin màu xanh dương, User màu xám
+                    label={user.role ? user.role.toUpperCase() : "STAFF"}
+                    color={user.role && user.role.toLowerCase() === "admin" ? "info" : "secondary"}
                     size="small"
                 />
             </MDBox>
         ),
-
         status: (
             <MDBox ml={-1}>
                 <Chip
-                    label={user.active === 1 ? "Hoạt động" : "Đã Khóa"}
-                    color={user.active === 1 ? "success" : "error"}
+                    label={user.isActive ? "Hoạt động" : "Đã Khóa"}
+                    color={user.isActive ? "success" : "error"}
                     size="small"
                 />
             </MDBox>
@@ -206,11 +180,11 @@ function UsersUnified() {
                 </MDButton>
                 <MDButton
                     variant="text"
-                    color={user.active === 1 ? "warning" : "success"}
-                    onClick={() => handleToggleStatus(user.id, user.active)}
+                    color={user.isActive ? "warning" : "success"}
+                    onClick={() => handleToggleStatus(user)}
                 >
-                    <Icon>{user.active === 1 ? "lock" : "lock_open"}</Icon>&nbsp;
-                    {user.active === 1 ? "Khóa" : "Mở Khóa"}
+                    <Icon>{user.isActive ? "lock" : "lock_open"}</Icon>&nbsp;
+                    {user.isActive ? "Khóa" : "Mở Khóa"}
                 </MDButton>
             </MDBox>
         ),
@@ -244,29 +218,36 @@ function UsersUnified() {
                 <DialogTitle>{isEditing ? "Cập Nhật Tài Khoản" : "Tạo Tài Khoản Mới"}</DialogTitle>
                 <MDBox component="form" role="form" onSubmit={handleSubmit}>
                     <DialogContent dividers>
-                        <MDTypography variant="h6" fontWeight="medium" mb={2}>Thông tin đăng nhập</MDTypography>
                         <Grid container spacing={2}>
-                            <Grid item xs={12} sm={6}>
-                                <MDInput type="text" label="Tên đăng nhập" name="userName" value={formData.userName} onChange={handleChange} fullWidth required />
-                            </Grid>
-                            <Grid item xs={12} sm={6}>
-                                <MDInput type="password" label={isEditing ? "Mật khẩu mới (Để trống nếu ko đổi)" : "Mật khẩu"} name="userPassword" value={formData.userPassword} onChange={handleChange} fullWidth required={!isEditing} />
-                            </Grid>
-                        </Grid>
-
-                        <MDTypography variant="h6" fontWeight="medium" mt={3} mb={2}>Thông tin cá nhân</MDTypography>
-                        <Grid container spacing={2}>
-                            <Grid item xs={12} sm={6}>
-                                <MDInput type="text" label="Họ (Last Name)" name="lastName" value={formData.lastName} onChange={handleChange} fullWidth required />
-                            </Grid>
-                            <Grid item xs={12} sm={6}>
-                                <MDInput type="text" label="Tên (First Name)" name="firstName" value={formData.firstName} onChange={handleChange} fullWidth required />
+                            <Grid item xs={12}>
+                                <MDInput type="text" label="Họ Tên (Name)" name="name" value={formData.name} onChange={handleChange} fullWidth required />
                             </Grid>
                             <Grid item xs={12}>
-                                <MDInput type="email" label="Email" name="email" value={formData.email} onChange={handleChange} fullWidth required />
+                                <MDInput type="email" label="Email đăng nhập" name="email" value={formData.email} onChange={handleChange} fullWidth required />
                             </Grid>
                             <Grid item xs={12}>
-                                <MDInput type="text" label="Số điện thoại" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} fullWidth />
+                                <MDInput
+                                    type="password"
+                                    label="Mật khẩu"
+                                    name="password"
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    fullWidth
+                                    required={!isEditing}
+                                />
+                            </Grid>
+                            <Grid item xs={12}>
+                                <MDTypography variant="caption" color="text" fontWeight="regular">Phân quyền</MDTypography>
+                                <Select
+                                    name="role"
+                                    value={formData.role}
+                                    onChange={handleChange}
+                                    fullWidth
+                                    sx={{ height: 45 }}
+                                >
+                                    <MenuItem value="staff">Nhân viên (Staff)</MenuItem>
+                                    <MenuItem value="admin">Quản trị viên (Admin)</MenuItem>
+                                </Select>
                             </Grid>
                         </Grid>
                     </DialogContent>

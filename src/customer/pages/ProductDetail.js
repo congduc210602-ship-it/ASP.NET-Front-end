@@ -3,16 +3,16 @@ import { useParams, Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { getProductById } from 'services/ProductService';
 import { ShoppingBag, Heart, ShieldCheck, Truck, ArrowLeft, Minus, Plus } from 'lucide-react';
-import { useCart } from '../../context/CartContext'; // Import hook giỏ hàng
+import { useCart } from '../../context/CartContext';
 
 const ProductDetail = () => {
     const { id } = useParams();
     const [product, setProduct] = useState(null);
     const [loading, setLoading] = useState(true);
     const [quantity, setQuantity] = useState(1);
-
-    // Lấy hàm addToCart từ Context
     const { addToCart } = useCart();
+
+    const BACKEND_URL = "https://asp-net-2.onrender.com"; // Thêm URL Backend
 
     useEffect(() => {
         const fetchProductDetails = async () => {
@@ -47,54 +47,54 @@ const ProductDetail = () => {
         );
     }
 
-    const imageUrl = product.imageUrl || 'https://placehold.co/600x800?text=No+Image';
+    // ĐỒNG BỘ ẢNH: Nối URL backend nếu ảnh lưu dạng path cục bộ
+    const imageUrl = product.avatar
+        ? (product.avatar.startsWith("http") ? product.avatar : `${BACKEND_URL}${product.avatar}`)
+        : 'https://placehold.co/600x800?text=No+Image';
 
     const handleDecrease = () => setQuantity(q => q > 1 ? q - 1 : 1);
-    const handleIncrease = () => setQuantity(q => q < product.availability ? q + 1 : q);
+    const handleIncrease = () => setQuantity(q => q < (product.availability || 0) ? q + 1 : q);
 
     return (
         <div className="bg-white min-h-screen font-sans selection:bg-blue-200">
             <Navbar />
-
-            {/* Đường dẫn Breadcrumb */}
             <div className="bg-gray-50 py-4 border-b border-gray-100">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-sm text-gray-500 font-medium flex items-center space-x-2">
                     <Link to="/" className="hover:text-blue-600 transition-colors">Trang chủ</Link>
                     <span>/</span>
-                    <span className="hover:text-blue-600 cursor-pointer transition-colors">{product.category || 'Nước hoa'}</span>
+                    <span className="hover:text-blue-600 cursor-pointer transition-colors">
+                        {product.category?.name || 'Nước hoa'}
+                    </span>
                     <span>/</span>
-                    <span className="text-gray-900">{product.productName}</span>
+                    <span className="text-gray-900">{product.name}</span>
                 </div>
             </div>
 
-            {/* Chi tiết Sản Phẩm */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 <div className="flex flex-col md:flex-row gap-12 lg:gap-20">
-
-                    {/* Cột Trái: Hình ảnh */}
                     <div className="w-full md:w-1/2">
                         <div className="bg-gray-50 rounded-3xl p-8 flex items-center justify-center aspect-[4/5] relative">
                             <img
                                 src={imageUrl}
-                                alt={product.productName}
+                                alt={product.name}
                                 className="w-full h-full object-contain mix-blend-multiply drop-shadow-2xl"
                                 onError={(e) => { e.target.src = 'https://placehold.co/600x800?text=No+Image'; }}
                             />
                         </div>
                     </div>
 
-                    {/* Cột Phải: Thông tin chi tiết */}
                     <div className="w-full md:w-1/2 flex flex-col justify-center">
                         <p className="text-sm text-blue-600 font-bold uppercase tracking-[0.2em] mb-3">
-                            {product.category || 'Nước hoa cao cấp'}
+                            {product.category?.name || 'Nước hoa cao cấp'}
                         </p>
-                        <h1 className="text-4xl lg:text-5xl font-black text-gray-900 leading-tight mb-4">
-                            {product.productName}
+                        <h1 className="text-4xl lg:text-5xl font-black text-gray-900 mb-4">
+                            {product.name} {/* Sửa từ productName thành name */}
                         </h1>
 
                         <div className="flex items-end gap-4 mb-6">
                             <span className="text-3xl font-black text-red-600">
-                                {product.price?.toLocaleString('vi-VN')} <span className="text-xl text-gray-500 underline">đ</span>
+                                {/* Sử dụng product.price thay vì priceAtTime */}
+                                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(product.price || 0)}
                             </span>
                             {product.availability > 0 ? (
                                 <span className="bg-emerald-100 text-emerald-700 text-sm font-bold px-3 py-1 rounded-full mb-1">
@@ -108,12 +108,11 @@ const ProductDetail = () => {
                         </div>
 
                         <p className="text-gray-600 text-lg mb-8 leading-relaxed">
-                            {product.description || "Một tuyệt tác mùi hương giúp bạn khẳng định phong cách cá nhân và thu hút mọi ánh nhìn. Phù hợp cho cả ngày thường và những dịp đặc biệt."}
+                            {product.description || "Chưa có mô tả cho sản phẩm này."}
                         </p>
 
-                        <Divider />
+                        <div className="h-px bg-gray-100 w-full"></div>
 
-                        {/* Chọn số lượng */}
                         <div className="mb-8 mt-6">
                             <span className="block text-sm font-bold text-gray-700 mb-3">Số lượng</span>
                             <div className="flex items-center space-x-4">
@@ -129,41 +128,21 @@ const ProductDetail = () => {
                             </div>
                         </div>
 
-                        {/* Nút Hành Động */}
                         <div className="flex flex-col sm:flex-row gap-4 mb-10">
                             <button
-                                onClick={() => addToCart(product, quantity)} // Kích hoạt sự kiện mua hàng
-                                disabled={product.availability === 0}
+                                onClick={() => addToCart(product, quantity)}
+                                disabled={!product.availability || product.availability === 0}
                                 className="flex-1 bg-gray-900 text-white py-4 rounded-2xl font-bold text-lg hover:bg-blue-600 hover:shadow-lg hover:shadow-blue-200 transition-all flex items-center justify-center gap-2 disabled:bg-gray-300 disabled:cursor-not-allowed"
                             >
                                 <ShoppingBag size={20} />
                                 Thêm Vào Giỏ
                             </button>
-                            <button className="p-4 bg-red-50 text-red-500 rounded-2xl font-bold hover:bg-red-500 hover:text-white transition-all flex items-center justify-center shadow-sm">
-                                <Heart size={24} />
-                            </button>
                         </div>
-
-                        {/* Cam kết cửa hàng */}
-                        <div className="grid grid-cols-2 gap-4 pt-6 border-t border-gray-100">
-                            <div className="flex items-center gap-3 text-gray-600">
-                                <div className="bg-blue-50 p-2 rounded-lg text-blue-600"><ShieldCheck size={20} /></div>
-                                <span className="text-sm font-semibold">100% Chính hãng</span>
-                            </div>
-                            <div className="flex items-center gap-3 text-gray-600">
-                                <div className="bg-emerald-50 p-2 rounded-lg text-emerald-600"><Truck size={20} /></div>
-                                <span className="text-sm font-semibold">Giao hàng toàn quốc</span>
-                            </div>
-                        </div>
-
                     </div>
                 </div>
             </div>
         </div>
     );
 };
-
-// Component chia vạch ngang tiện ích
-const Divider = () => <div className="h-px bg-gray-100 w-full"></div>;
 
 export default ProductDetail;
