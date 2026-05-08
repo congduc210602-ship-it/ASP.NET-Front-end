@@ -58,9 +58,16 @@ export const createOrder = async (orderData) => {
     });
 
     if (!response.ok) {
-        const errorData = await response.json();
-        // Trả về lỗi từ BadRequest của Backend nếu có
-        throw new Error(errorData.message || "Lỗi khi tạo đơn hàng");
+        // Xử lý thông minh: Đọc lỗi dạng Text để không bị crash JSON
+        const errorText = await response.text();
+        let errorMessage = errorText;
+        try {
+            const errorJson = JSON.parse(errorText);
+            errorMessage = errorJson.message || JSON.stringify(errorJson);
+        } catch (e) {
+            // Nếu lỗi là chữ thuần túy (VD: "Lỗi: Món ăn...") thì giữ nguyên
+        }
+        throw new Error(errorMessage);
     }
 
     return await response.json();

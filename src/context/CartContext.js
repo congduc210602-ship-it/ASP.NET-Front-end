@@ -1,58 +1,72 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { useAuth } from './AuthContext'; // 1. IMPORT AUTH CONTEXT
+import { useAuth } from './AuthContext';
 
 const CartContext = createContext();
 
 export const CartProvider = ({ children }) => {
-    const { currentUser } = useAuth(); // 2. LẤY THÔNG TIN USER HIỆN TẠI
+    const { currentUser } = useAuth();
     const [cartItems, setCartItems] = useState([]);
 
-    // Xác định Key lưu trữ dựa trên User ID (Đảm bảo không bị undefined)
     const getStorageKey = () => {
         const userId = currentUser?.id || currentUser?.userId;
         return userId ? `cart_${userId}` : 'cart_guest';
     };
 
-    // 3. EFFECT 1: Khi User thay đổi (Login/Logout), nạp giỏ hàng tương ứng từ máy
     useEffect(() => {
         const key = getStorageKey();
         const savedCart = localStorage.getItem(key);
         setCartItems(savedCart ? JSON.parse(savedCart) : []);
     }, [currentUser]);
 
-    // 4. EFFECT 2: Mỗi khi giỏ hàng hoặc User thay đổi, tự động lưu lại vào đúng Key
     useEffect(() => {
         const key = getStorageKey();
-        // Chỉ lưu nếu mảng có dữ liệu hoặc Key không phải là guest (tùy nhu cầu)
         localStorage.setItem(key, JSON.stringify(cartItems));
     }, [cartItems, currentUser]);
 
+    // HÀM TẠO KEY TOPPING ĐỂ SO SÁNH
+    const getToppingKey = (toppings) => {
+        if (!toppings || toppings.length === 0) return "no-topping";
+        // Lấy ID topping, sắp xếp lại để đảm bảo thứ tự chọn không ảnh hưởng
+        return toppings.map(t => t.id).sort().join('-');
+    };
+
     const addToCart = (product, quantity = 1) => {
         setCartItems(prevItems => {
-            const isExist = prevItems.find(item => item.id === product.id);
-            if (isExist) {
-                return prevItems.map(item =>
-                    item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item
-                );
+            const newToppingKey = getToppingKey(product.toppings);
+            // THỦ THUẬT: Tạo ID duy nhất cho dòng giỏ hàng = Mã SP + Mã Topping
+            const uniqueCartId = `${product.id}_${newToppingKey}`;
+
+            const existingItemIndex = prevItems.findIndex(item => {
+                const itemToppingKey = getToppingKey(item.toppings);
+                return item.id === product.id && itemToppingKey === newToppingKey;
+            });
+
+            if (existingItemIndex >= 0) {
+                // Trùng y hệt món & Topping -> Gộp số lượng
+                const updatedItems = [...prevItems];
+                updatedItems[existingItemIndex].quantity += quantity;
+                return updatedItems;
+            } else {
+                // Khác món hoặc khác Topping -> Thêm dòng mới (kèm uniqueCartId)
+                return [...prevItems, { ...product, uniqueCartId, quantity }];
             }
-            return [...prevItems, { ...product, quantity }];
         });
         alert(`Đã thêm ${product.name} vào giỏ hàng!`);
     };
 
-    const removeFromCart = (id) => {
-        setCartItems(prevItems => prevItems.filter(item => item.id !== id));
+    // SỬA LẠI: Xóa và Cập nhật số lượng dựa trên uniqueCartId thay vì id gốc
+    const removeFromCart = (identifier) => {
+        setCartItems(prevItems => prevItems.filter(item => (item.uniqueCartId || item.id) !== identifier));
     };
 
-    const updateQuantity = (id, newQuantity) => {
+    const updateQuantity = (identifier, newQuantity) => {
         if (newQuantity < 1) return;
         setCartItems(prevItems =>
-            prevItems.map(item => item.id === id ? { ...item, quantity: newQuantity } : item)
+            prevItems.map(item => (item.uniqueCartId || item.id) === identifier ? { ...item, quantity: newQuantity } : item)
         );
     };
 
-    // 5. HÀM DỌN SẠCH STATE (Dùng khi logout để UI về trống, nhưng không xóa localStorage)
     const clearCartState = () => {
         setCartItems([]);
     };

@@ -17,9 +17,13 @@ const Checkout = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [orderSuccess, setOrderSuccess] = useState(false);
 
-    const totalPrice = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const [paymentMethod, setPaymentMethod] = useState('cod'); // Backend dùng chữ thường: cod, vnpay
+    // --- SỬA LẠI HÀM TÍNH TỔNG TIỀN (Bao gồm Topping) ---
+    const totalPrice = cartItems.reduce((sum, item) => {
+        const itemToppingsPrice = item.toppings ? item.toppings.reduce((tSum, t) => tSum + t.price, 0) : 0;
+        return sum + ((item.price + itemToppingsPrice) * item.quantity);
+    }, 0);
 
+    const [paymentMethod, setPaymentMethod] = useState('cod');
     const BACKEND_URL = "https://asp-net-2.onrender.com";
 
     useEffect(() => {
@@ -37,38 +41,54 @@ const Checkout = () => {
 
         setIsSubmitting(true);
         try {
-            // 1. Chuẩn bị danh sách món ăn đúng theo OrderDetailRequestDTO
-            const items = cartItems.map(item => ({
-                productVariantId: item.id, // Phải là ID của Variant
-                quantity: item.quantity,
-                toppings: JSON.stringify([]), // Backend của bạn cần chuỗi JSON list string
-                note: note || ""
-            }));
+            // 1. Chuẩn bị danh sách món ăn
+            const items = cartItems.map(item => {
+                // Chuyển mảng Topping thành JSON string
+                const toppingNames = item.toppings ? item.toppings.map(t => t.name) : [];
+
+                // THỦ THUẬT: TỰ ĐỘNG TÌM ĐÚNG MÃ SIZE (PRODUCT VARIANT ID)
+                // Ưu tiên lấy ID của Size đầu tiên, nếu không có mới dùng ID Sản phẩm
+                let correctVariantId = item.id;
+
+                if (item.productVariants && item.productVariants.length > 0) {
+                    correctVariantId = item.productVariants[0].id;
+                } else if (item.variants && item.variants.length > 0) {
+                    correctVariantId = item.variants[0].id;
+                }
+
+                return {
+                    productVariantId: correctVariantId, // Đã lấy đúng mã Size chuẩn!
+                    quantity: item.quantity,
+                    toppings: JSON.stringify(toppingNames),
+                    note: note || ""
+                };
+            });
 
             // 2. Chuẩn bị object OrderRequestDTO
             const orderPayload = {
                 customerId: currentUser.id || currentUser.userId,
-                storeId: 1, // Bạn đang bắt buộc StoreId trong DTO, nên để mặc định là 1
+                storeId: 1,
                 orderType: "delivery",
                 deliveryAddress: address,
-                paymentMethod: paymentMethod.toLowerCase(), // 'cod' hoặc 'vnpay'
-                items: items // Phải trùng tên "Items" trong DTO
+                paymentMethod: paymentMethod.toLowerCase(),
+                items: items
             };
 
             // 3. Gọi API qua Service
             const result = await createOrder(orderPayload);
-
             console.log("Kết quả từ Server:", result);
+
             clearCartState();
 
-            if (paymentMethod === 'VNPAY') {
+            if (paymentMethod === 'vnpay') {
                 // ... logic VNPay
             } else {
                 setOrderSuccess(true);
             }
         } catch (error) {
             console.error("Lỗi đặt hàng:", error);
-            alert(error.message || 'Có lỗi xảy ra!');
+            // Sửa lỗi hiển thị thông báo lỗi từ backend
+            alert(error.message || 'Có lỗi xảy ra trong quá trình đặt hàng!');
         } finally {
             setIsSubmitting(false);
         }
@@ -161,24 +181,38 @@ const Checkout = () => {
                         <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 sticky top-28">
                             <h3 className="text-lg font-bold text-gray-900 mb-6">Đơn hàng của bạn ({cartItems.length})</h3>
                             <div className="space-y-4 mb-6 max-h-[300px] overflow-y-auto pr-2">
-                                {cartItems.map(item => (
-                                    <div key={item.id} className="flex items-center gap-4 border-b border-gray-50 pb-4">
-                                        <div className="w-16 h-16 bg-gray-50 rounded-xl flex-shrink-0 flex items-center justify-center p-1">
-                                            <img
-                                                src={item.avatar ? (item.avatar.startsWith("http") ? item.avatar : `${BACKEND_URL}${item.avatar}`) : 'https://placehold.co/100'}
-                                                alt={item.name}
-                                                className="w-full h-full object-contain mix-blend-multiply"
-                                            />
+                                {cartItems.map((item, index) => {
+                                    // TÍNH LẠI GIÁ HIỂN THỊ CỦA SẢN PHẨM NÀY BÊN THANH TOÁN
+                                    const itemToppingsPrice = item.toppings ? item.toppings.reduce((sum, t) => sum + t.price, 0) : 0;
+                                    const currentItemPrice = item.price + itemToppingsPrice;
+
+                                    return (
+                                        <div key={`${item.id}-${index}`} className="flex items-center gap-4 border-b border-gray-50 pb-4">
+                                            <div className="w-16 h-16 bg-gray-50 rounded-xl flex-shrink-0 flex items-center justify-center p-1">
+                                                <img
+                                                    src={item.avatar ? (item.avatar.startsWith("http") ? item.avatar : `${BACKEND_URL}${item.avatar}`) : 'https://placehold.co/100'}
+                                                    alt={item.name}
+                                                    className="w-full h-full object-contain mix-blend-multiply"
+                                                />
+                                            </div>
+                                            <div className="flex-grow">
+                                                <h4 className="text-sm font-bold text-gray-900 line-clamp-1">{item.name}</h4>
+
+                                                {/* HIỂN THỊ TEXT TOPPING */}
+                                                {item.toppings && item.toppings.length > 0 && (
+                                                    <p className="text-[11px] text-gray-500 italic mt-0.5 leading-tight">
+                                                        + {item.toppings.map(t => t.name).join(', ')}
+                                                    </p>
+                                                )}
+
+                                                <p className="text-xs text-gray-500 mt-0.5">SL: x{item.quantity}</p>
+                                            </div>
+                                            <div className="text-sm font-bold text-red-600 self-start mt-1">
+                                                {(currentItemPrice * item.quantity).toLocaleString('vi-VN')}đ
+                                            </div>
                                         </div>
-                                        <div className="flex-grow">
-                                            <h4 className="text-sm font-bold text-gray-900 line-clamp-1">{item.name}</h4>
-                                            <p className="text-xs text-gray-500">SL: x{item.quantity}</p>
-                                        </div>
-                                        <div className="text-sm font-bold text-red-600">
-                                            {(item.price * item.quantity).toLocaleString('vi-VN')}đ
-                                        </div>
-                                    </div>
-                                ))}
+                                    )
+                                })}
                             </div>
                             <div className="space-y-3 pt-4 border-t border-gray-100">
                                 <div className="flex justify-between items-end">

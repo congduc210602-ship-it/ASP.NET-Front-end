@@ -87,12 +87,8 @@ const ProductCard = ({ product }) => {
                             </span>
                         </div>
 
-                        {product.availability > 0 ? (
-                            <span className="text-xs text-emerald-600 font-medium bg-emerald-50 px-2 py-1 rounded-md">
-                                Còn {product.availability} sp
-                            </span>
-                        ) : (
-                            <span className="text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded-md">
+                        {(!product.availability || product.availability <= 0) && (
+                            <span className="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
                                 Hết hàng
                             </span>
                         )}

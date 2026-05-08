@@ -78,12 +78,21 @@ export const AuthProvider = ({ children }) => {
                 body: JSON.stringify(userData),
             });
 
-            if (response.ok) {
-                return await response.json();
-            } else {
-                const errorData = await response.json();
-                throw new Error(errorData.message || "Đăng ký thất bại, vui lòng thử lại!");
+            if (!response.ok) {
+                // Xử lý thông minh: Đọc lỗi dạng Text trước để không bị crash JSON
+                const errorText = await response.text();
+                let errorMessage = errorText;
+                try {
+                    const errorJson = JSON.parse(errorText);
+                    errorMessage = errorJson.message || JSON.stringify(errorJson);
+                } catch (e) {
+                    // Nếu lỗi là chữ thuần túy (VD: "Lỗi: Email...") thì giữ nguyên errorText
+                }
+                throw new Error(errorMessage || "Đăng ký thất bại, vui lòng thử lại!");
             }
+
+            return await response.json();
+
         } catch (error) {
             throw error;
         }

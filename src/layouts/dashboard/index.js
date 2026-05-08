@@ -31,7 +31,6 @@ function Dashboard() {
   const fetchDashboardData = async () => {
     try {
       const API_URL = "https://asp-net-2.onrender.com/api";
-      // LẤY TOKEN ĐỂ GỌI API BẢO MẬT
       const user = JSON.parse(localStorage.getItem("user"));
       const token = user?.token;
 
@@ -40,12 +39,12 @@ function Dashboard() {
         "Content-Type": "application/json"
       };
 
-      // 1. Gọi đồng thời các API thống kê
+      // 1. Gọi đồng thời các API thống kê (ĐÃ SỬA LẠI ĐƯỜNG DẪN API)
       const [prodRes, userRes, revenueRes, ordersRes] = await Promise.all([
         fetch(`${API_URL}/Products`),
-        fetch(`${API_URL}/Users`, { headers }), // Cần token để xem ds User
-        fetch(`${API_URL}/Admin/reports/revenue`, { headers }), // Cần token
-        fetch(`${API_URL}/customer/orders`, { headers }) // API lấy tất cả đơn hàng
+        fetch(`${API_URL}/Users`, { headers }),
+        fetch(`${API_URL}/Admin/reports/revenue`, { headers }),
+        fetch(`${API_URL}/Admin/orders`, { headers }) // SỬA CHỖ NÀY: Dùng Admin/orders thay vì customer/orders
       ]);
 
       const prodData = await prodRes.json();
@@ -53,7 +52,7 @@ function Dashboard() {
       const revenueData = revenueRes.ok ? await revenueRes.json() : { totalOrders: 0, totalRevenue: 0 };
       const ordersData = ordersRes.ok ? await ordersRes.json() : [];
 
-      // Cập nhật thẻ thống kê (Kiểm tra cả viết hoa và viết thường)
+      // Cập nhật thẻ thống kê
       setStats({
         productsCount: prodData.length || 0,
         usersCount: userData.length || 0,
@@ -63,15 +62,14 @@ function Dashboard() {
 
       // 2. XỬ LÝ DỮ LIỆU BIỂU ĐỒ TỪ DANH SÁCH ĐƠN HÀNG THẬT
       if (ordersData.length > 0) {
-        // Mảng 12 tháng khởi tạo bằng 0
-        const monthlySales = Array(9).fill(0); // Từ tháng 4 (Apr) đến tháng 12 (Dec)
+        const monthlySales = Array(9).fill(0);
         const monthlyOrders = Array(9).fill(0);
 
         ordersData.forEach(order => {
           const date = new Date(order.createdAt || order.CreatedAt);
-          const monthIndex = date.getMonth(); // 0 = Jan, 3 = Apr
+          const monthIndex = date.getMonth();
 
-          if (monthIndex >= 3) { // Chỉ lấy từ tháng 4 trở đi theo Labels của biểu đồ
+          if (monthIndex >= 3) {
             const indexInArray = monthIndex - 3;
             monthlyOrders[indexInArray] += 1;
             monthlySales[indexInArray] += (order.totalAmount || order.TotalAmount || 0);
@@ -97,17 +95,34 @@ function Dashboard() {
         <Grid container spacing={3}>
           <Grid item xs={12} md={6} lg={3}>
             <MDBox mb={1.5}>
-              <ComplexStatisticsCard color="dark" icon="store" title="Tổng Sản Phẩm" count={stats.productsCount} />
+              <ComplexStatisticsCard
+                color="dark"
+                icon="store"
+                title="Tổng Sản Phẩm"
+                count={stats.productsCount}
+                percentage={{ color: "success", amount: "", label: "" }} // Thêm dòng này để fix lỗi
+              />
             </MDBox>
           </Grid>
           <Grid item xs={12} md={6} lg={3}>
             <MDBox mb={1.5}>
-              <ComplexStatisticsCard icon="leaderboard" title="Người Dùng" count={stats.usersCount} />
+              <ComplexStatisticsCard
+                icon="leaderboard"
+                title="Người Dùng"
+                count={stats.usersCount}
+                percentage={{ color: "success", amount: "", label: "" }} // Thêm dòng này để fix lỗi
+              />
             </MDBox>
           </Grid>
           <Grid item xs={12} md={6} lg={3}>
             <MDBox mb={1.5}>
-              <ComplexStatisticsCard color="success" icon="shopping_cart" title="Đơn Hàng" count={stats.ordersCount} />
+              <ComplexStatisticsCard
+                color="success"
+                icon="shopping_cart"
+                title="Đơn Hàng"
+                count={stats.ordersCount}
+                percentage={{ color: "success", amount: "", label: "" }} // Thêm dòng này để fix lỗi
+              />
             </MDBox>
           </Grid>
           <Grid item xs={12} md={6} lg={3}>
@@ -117,6 +132,7 @@ function Dashboard() {
                 icon="attach_money"
                 title="Doanh Thu"
                 count={new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(stats.totalRevenue)}
+                percentage={{ color: "success", amount: "", label: "" }} // Thêm dòng này để fix lỗi
               />
             </MDBox>
           </Grid>

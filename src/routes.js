@@ -38,7 +38,6 @@ Coded by www.creative-tim.com
 // Material Dashboard 2 React layouts
 import Dashboard from "layouts/dashboard";
 import Tables from "layouts/tables";
-import Billing from "layouts/billing";
 import RTL from "layouts/rtl";
 import Notifications from "layouts/notifications";
 import Profile from "layouts/profile";
@@ -50,7 +49,8 @@ import OrdersUnified from "layouts/orders-unified";
 import CategoriesUnified from "layouts/categories-unified";
 import ReviewsUnified from "layouts/reviews-unified";
 import Promotions from "layouts/promotions-unified";
-
+import ToppingsUnified from "layouts/toppings-unified";
+import CustomersUnified from "layouts/customers-unified";
 
 // @mui icons
 import Icon from "@mui/material/Icon";
@@ -74,6 +74,15 @@ const routes = [
     route: "/admin/categories",
     component: <CategoriesUnified />,
   },
+  // TOPPINGS
+  {
+    type: "collapse",
+    name: "Quản Lý Topping",
+    key: "toppings",
+    icon: <Icon fontSize="small">icecream</Icon>, // Dùng icon cây kem cho món thêm
+    route: "/admin/toppings",
+    component: <ToppingsUnified />,
+  },
   //USER
   {
     type: "collapse",
@@ -82,6 +91,15 @@ const routes = [
     icon: <Icon fontSize="small">group</Icon>,
     route: "/admin/users",
     component: <UsersUnified />,
+  },
+  //CUSTOMER
+  {
+    type: "collapse",
+    name: "Quản Lý Khách Hàng",
+    key: "customers",
+    icon: <Icon fontSize="small">people_alt</Icon>,
+    route: "/admin/customers",
+    component: <CustomersUnified />,
   },
   //ORDER
   {
@@ -102,14 +120,14 @@ const routes = [
     component: <ReviewsUnified />,
   },
   // PROMOTIONS
-{
-  type: "collapse",
-  name: "Khuyến mãi",
-  key: "promotions",
-  icon: <Icon fontSize="small">loyalty</Icon>, // Dùng icon hình cái mác giảm giá
-  route: "/admin/promotions",
-  component: <Promotions />,
-},
+  {
+    type: "collapse",
+    name: "Khuyến mãi",
+    key: "promotions",
+    icon: <Icon fontSize="small">loyalty</Icon>, // Dùng icon hình cái mác giảm giá
+    route: "/admin/promotions",
+    component: <Promotions />,
+  },
   {
     type: "collapse",
     name: "Dashboard",
@@ -125,14 +143,6 @@ const routes = [
     icon: <Icon fontSize="small">table_view</Icon>,
     route: "/tables",
     component: <Tables />,
-  },
-  {
-    type: "collapse",
-    name: "Billing",
-    key: "billing",
-    icon: <Icon fontSize="small">receipt_long</Icon>,
-    route: "/billing",
-    component: <Billing />,
   },
   {
     type: "collapse",

@@ -27,6 +27,7 @@ import { getAllOrders, updateOrderStatus } from "../../services/OrderService";
 
 function OrdersUnified() {
     const [orders, setOrders] = useState([]);
+    const [filterStatus, setFilterStatus] = useState("all"); // State bộ lọc
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentOrder, setCurrentOrder] = useState(null);
     const [newStatus, setNewStatus] = useState("");
@@ -39,7 +40,6 @@ function OrdersUnified() {
     const fetchOrders = async () => {
         try {
             const data = await getAllOrders();
-            // Sắp xếp đơn mới nhất lên đầu
             data.sort((a, b) => b.id - a.id);
             setOrders(data);
         } catch (error) {
@@ -47,9 +47,13 @@ function OrdersUnified() {
         }
     };
 
+    // Logic lọc đơn hàng
+    const filteredOrders = filterStatus === "all"
+        ? orders
+        : orders.filter(o => o.status?.toLowerCase() === filterStatus.toLowerCase());
+
     const handleExportExcel = () => {
-        // 1. Chuẩn bị dữ liệu: Lọc những thông tin cần thiết từ danh sách đơn hàng
-        const excelData = orders.map((order) => ({
+        const excelData = filteredOrders.map((order) => ({
             "Mã Hệ Thống": order.id,
             "Mã Hóa Đơn": order.invoiceCode || "N/A",
             "Tên Khách Hàng": order.customer?.name || "Khách vãng lai",
@@ -58,12 +62,9 @@ function OrdersUnified() {
             "Trạng Thái": order.status?.toUpperCase() || "N/A"
         }));
 
-        // 2. Tạo sheet và xuất file
         const worksheet = XLSX.utils.json_to_sheet(excelData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "DanhSachDonHang");
-
-        // Tên file tải về (có gắn thêm thời gian để không bị trùng)
         XLSX.writeFile(workbook, `BaoCao_DonHang_${new Date().getTime()}.xlsx`);
     };
 
@@ -83,13 +84,12 @@ function OrdersUnified() {
             fetchOrders();
             handleCloseModal();
         } catch (error) {
-            alert("Lỗi khi cập nhật trạng thái! (Vui lòng kiểm tra Console F12)");
+            alert("Lỗi khi cập nhật trạng thái!");
         } finally {
             setIsUpdating(false);
         }
     };
 
-    // ĐỒNG BỘ: Chuyển đổi màu Chip theo đúng file C# (pending, preparing, delivering, completed, cancelled)
     const getStatusColor = (status) => {
         switch (status?.toLowerCase()) {
             case "pending": return "warning";
@@ -101,14 +101,12 @@ function OrdersUnified() {
         }
     };
 
-    // Hàm phụ trợ format ngày tháng đẹp hơn
     const formatDate = (dateString) => {
         if (!dateString) return "N/A";
         const date = new Date(dateString);
         return date.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     };
 
-    // Cấu hình bảng
     const columns = [
         { Header: "Mã Đơn", accessor: "id", width: "10%", align: "center" },
         { Header: "Mã Hóa Đơn", accessor: "invoice", align: "center" },
@@ -119,15 +117,11 @@ function OrdersUnified() {
         { Header: "Hành Động", accessor: "action", align: "center" },
     ];
 
-    const rows = orders.map((order) => ({
+    const rows = filteredOrders.map((order) => ({
         id: <MDTypography variant="caption" fontWeight="bold">#{order.id}</MDTypography>,
-        // ĐỒNG BỘ InvoiceCode
         invoice: <MDTypography variant="caption" fontWeight="medium">{order.invoiceCode || "N/A"}</MDTypography>,
-        // ĐỒNG BỘ Customer (Backend trả customer.name)
         customer: <MDTypography variant="caption" fontWeight="medium">{order.customer?.name || "Khách vãng lai"}</MDTypography>,
-        // ĐỒNG BỘ CreatedAt
         date: <MDTypography variant="caption">{formatDate(order.createdAt)}</MDTypography>,
-        // ĐỒNG BỘ TotalAmount
         total: <MDTypography variant="button" fontWeight="medium">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(order.totalAmount || 0)}</MDTypography>,
         status: (
             <MDBox ml={-1}>
@@ -149,11 +143,36 @@ function OrdersUnified() {
                     <Grid item xs={12}>
                         <Card>
                             <MDBox mx={2} mt={-3} py={3} px={2} variant="gradient" bgColor="warning" borderRadius="lg" coloredShadow="warning" display="flex" justifyContent="space-between" alignItems="center">
-                                <MDTypography variant="h6" color="white">Quản Lý Đơn Hàng</MDTypography>
+                                <MDBox>
+                                    <MDTypography variant="h6" color="white">Quản Lý Đơn Hàng</MDTypography>
+                                    <MDTypography variant="caption" color="white">Đang hiển thị: {filterStatus.toUpperCase()}</MDTypography>
+                                </MDBox>
                                 <MDButton variant="outlined" color="white" onClick={handleExportExcel}>
                                     <Icon sx={{ mr: 1 }}>download</Icon> Xuất Excel
                                 </MDButton>
                             </MDBox>
+
+                            {/* BỘ LỌC NHANH TRẠNG THÁI */}
+                            <MDBox px={3} pt={3} display="flex" gap={1} flexWrap="wrap">
+                                {[
+                                    { label: "Tất cả", value: "all", color: "dark" },
+                                    { label: "Chờ xác nhận", value: "pending", color: "warning" },
+                                    { label: "Đang làm", value: "preparing", color: "info" },
+                                    { label: "Đã xong", value: "completed", color: "success" },
+                                    { label: "Đã hủy", value: "error", value: "cancelled", color: "error" }
+                                ].map((btn) => (
+                                    <MDButton
+                                        key={btn.value}
+                                        variant={filterStatus === btn.value ? "gradient" : "outlined"}
+                                        color={btn.color}
+                                        size="small"
+                                        onClick={() => setFilterStatus(btn.value)}
+                                    >
+                                        {btn.label}
+                                    </MDButton>
+                                ))}
+                            </MDBox>
+
                             <MDBox pt={3}>
                                 <DataTable table={{ columns, rows }} isSorted={true} entriesPerPage={true} showTotalEntries={true} noEndBorder />
                             </MDBox>
@@ -162,12 +181,10 @@ function OrdersUnified() {
                 </Grid>
             </MDBox>
 
-            {/* POPUP CHI TIẾT ĐƠN HÀNG */}
             <Dialog open={isModalOpen} onClose={handleCloseModal} maxWidth="md" fullWidth>
                 <DialogTitle>Chi Tiết Đơn Hàng #{currentOrder?.id}</DialogTitle>
                 <DialogContent dividers>
                     <Grid container spacing={2}>
-                        {/* Cột trái: Thông tin khách & trạng thái */}
                         <Grid item xs={12} md={5}>
                             <MDTypography variant="h6" fontWeight="medium">Thông tin giao hàng</MDTypography>
                             <MDTypography variant="caption" display="block">Khách hàng: <b>{currentOrder?.customer?.name || "Khách vãng lai"}</b></MDTypography>
@@ -180,7 +197,6 @@ function OrdersUnified() {
                             <Divider sx={{ my: 2 }} />
 
                             <MDTypography variant="h6" fontWeight="medium" mb={1}>Cập nhật trạng thái</MDTypography>
-                            {/* ĐỒNG BỘ: Danh sách các Option khớp với file Order.cs */}
                             <Select
                                 value={newStatus}
                                 onChange={(e) => setNewStatus(e.target.value)}
@@ -195,36 +211,65 @@ function OrdersUnified() {
                             </Select>
                         </Grid>
 
-                        {/* Cột phải: Danh sách sản phẩm */}
                         <Grid item xs={12} md={7}>
                             <MDTypography variant="h6" fontWeight="medium" mb={1}>Sản phẩm đã đặt</MDTypography>
                             <Card sx={{ p: 2, bgcolor: "#f8f9fa", maxHeight: "300px", overflowY: "auto" }}>
-                                {/* ĐỒNG BỘ: Duyệt mảng orderDetails thay vì items */}
                                 {currentOrder?.orderDetails?.length > 0 ? (
-                                    currentOrder.orderDetails.map((item, index) => (
-                                        <MDBox key={index} display="flex" justifyContent="space-between" mb={2}>
-                                            <MDTypography variant="caption" sx={{ width: "70%" }}>
-                                                <b>{item.quantity}x</b> {item.productVariant?.product?.name || `Sản phẩm ID: ${item.productVariantId}`}
-                                                {item.toppings && <span style={{ display: 'block', fontSize: '0.75rem', color: '#666' }}>+ {item.toppings}</span>}
-                                                {item.note && <span style={{ display: 'block', fontSize: '0.75rem', color: '#d32f2f' }}>Ghi chú: {item.note}</span>}
-                                            </MDTypography>
+                                    currentOrder.orderDetails.map((item, index) => {
+                                        // BƯỚC 1: Xử lý chuỗi JSON Topping từ Backend gửi xuống (VD: '["Thạch Cà Phê"]')
+                                        let parsedToppings = [];
+                                        let toppingsPrice = 0;
+                                        if (item.toppings) {
+                                            try {
+                                                // Cố gắng chuyển chuỗi JSON thành Mảng
+                                                parsedToppings = JSON.parse(item.toppings);
+                                                // MẸO: Tạm thời mặc định mỗi Topping giá 10.000đ (hoặc bạn có thể tạo API lấy giá thực tế sau)
+                                                // Để báo cáo chạy mượt, ta cứ nhân số lượng Topping với 10k
+                                                toppingsPrice = parsedToppings.length * 10000;
+                                            } catch (e) {
+                                                // Nếu nó không phải JSON mà là chuỗi thường (do lỗi data cũ)
+                                                parsedToppings = [item.toppings];
+                                            }
+                                        }
 
-                                            {/* ĐỒNG BỘ: Tính subtotal = quantity * priceAtTime */}
-                                            <MDTypography variant="caption" fontWeight="bold">
-                                                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.quantity * (item.priceAtTime || 0))}
-                                            </MDTypography>
-                                        </MDBox>
-                                    ))
+                                        // BƯỚC 2: Tính lại Giá 1 Ly = Giá Gốc (PriceAtTime) + Giá các Topping
+                                        const finalItemPrice = (item.priceAtTime || 0) + toppingsPrice;
+
+                                        // BƯỚC 3: Tính Tổng Tiền của dòng này = Giá 1 Ly * Số lượng
+                                        const lineTotal = finalItemPrice * item.quantity;
+
+                                        return (
+                                            <MDBox key={index} display="flex" justifyContent="space-between" mb={2}>
+                                                <MDBox sx={{ width: "70%" }}>
+                                                    <MDTypography variant="caption" display="block">
+                                                        <b>{item.quantity}x</b> {item.productVariant?.product?.name || `Mã SP: ${item.productVariantId}`}
+                                                    </MDTypography>
+
+                                                    {/* HIỂN THỊ DANH SÁCH TOPPING */}
+                                                    {parsedToppings.length > 0 && (
+                                                        <MDTypography variant="caption" color="text" sx={{ fontStyle: 'italic', fontSize: '0.7rem' }}>
+                                                            + {parsedToppings.join(', ')}
+                                                        </MDTypography>
+                                                    )}
+
+                                                    {item.note && (
+                                                        <MDTypography variant="caption" color="error" display="block" sx={{ fontSize: '0.7rem' }}>
+                                                            Ghi chú: {item.note}
+                                                        </MDTypography>
+                                                    )}
+                                                </MDBox>
+
+                                                {/* HIỂN THỊ TIỀN ĐÃ ĐƯỢC TÍNH TOÁN LẠI */}
+                                                <MDTypography variant="caption" fontWeight="bold">
+                                                    {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(lineTotal)}
+                                                </MDTypography>
+                                            </MDBox>
+                                        );
+                                    })
                                 ) : (
-                                    <MDTypography variant="caption" color="text">Không có chi tiết món hoặc API chưa Include bảng OrderDetails.</MDTypography>
+                                    <MDTypography variant="caption" color="text">Không có chi tiết đơn hàng.</MDTypography>
                                 )}
                                 <Divider />
-                                <MDBox display="flex" justifyContent="space-between">
-                                    <MDTypography variant="button" color="text">Giảm giá:</MDTypography>
-                                    <MDTypography variant="button" color="text">
-                                        - {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(currentOrder?.discountAmount || 0)}
-                                    </MDTypography>
-                                </MDBox>
                                 <MDBox display="flex" justifyContent="space-between" mt={1}>
                                     <MDTypography variant="button" fontWeight="bold">TỔNG THU:</MDTypography>
                                     <MDTypography variant="button" color="error" fontWeight="bold">
@@ -236,6 +281,10 @@ function OrdersUnified() {
                     </Grid>
                 </DialogContent>
                 <DialogActions>
+                    {/* Nút In nhanh sử dụng tính năng Print của trình duyệt */}
+                    <MDButton onClick={() => window.print()} color="dark" variant="text">
+                        <Icon>print</Icon>&nbsp;In
+                    </MDButton>
                     <MDButton onClick={handleCloseModal} color="secondary">Đóng</MDButton>
                     <MDButton variant="gradient" color="info" onClick={handleStatusChange} disabled={isUpdating}>
                         {isUpdating ? "Đang lưu..." : "Lưu Trạng Thái"}

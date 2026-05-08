@@ -2,30 +2,32 @@ import React, { useEffect } from 'react';
 import { useCart } from '../../context/CartContext';
 import Navbar from '../components/Navbar';
 import { Trash2, Minus, Plus, ArrowLeft, CreditCard, ShieldCheck } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom'; // Thêm useNavigate
+import { Link, useNavigate } from 'react-router-dom';
 
 const Cart = () => {
     const { cartItems, removeFromCart, updateQuantity } = useCart();
-    const navigate = useNavigate(); // Khởi tạo navigate
+    const navigate = useNavigate();
     const BACKEND_URL = "https://asp-net-2.onrender.com";
 
-    const totalPrice = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    // HÀM TÍNH TỔNG TIỀN MỚI (Đã bao gồm tiền Topping)
+    const totalPrice = cartItems.reduce((sum, item) => {
+        // Tính tổng giá Topping của sản phẩm này (nếu có)
+        const itemToppingsPrice = item.toppings ? item.toppings.reduce((tSum, topping) => tSum + topping.price, 0) : 0;
+        // Tổng giá = (Giá sản phẩm + Giá các Topping) * Số lượng
+        return sum + ((item.price + itemToppingsPrice) * item.quantity);
+    }, 0);
 
     useEffect(() => {
         window.scrollTo(0, 0);
     }, []);
 
-    // HÀM XỬ LÝ CHUYỂN TRANG THANH TOÁN
     const handleCheckout = () => {
         const user = JSON.parse(localStorage.getItem("user"));
-
         if (!user) {
             alert("Vui lòng đăng nhập để tiến hành thanh toán!");
             navigate("/authentication/sign-in");
             return;
         }
-
-        // Chuyển hướng sang trang Checkout
         navigate("/checkout");
     };
 
@@ -55,13 +57,20 @@ const Cart = () => {
                 ) : (
                     <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
                         <div className="w-full lg:w-2/3 space-y-4">
-                            {cartItems.map(item => {
+                            {cartItems.map((item, index) => {
                                 const imageUrl = item.avatar
                                     ? (item.avatar.startsWith("http") ? item.avatar : `${BACKEND_URL}${item.avatar}`)
                                     : 'https://placehold.co/150x150?text=No+Image';
 
+                                // TÍNH LẠI GIÁ HIỂN THỊ CỦA SẢN PHẨM NÀY
+                                const itemToppingsPrice = item.toppings ? item.toppings.reduce((sum, t) => sum + t.price, 0) : 0;
+                                const currentItemPrice = item.price + itemToppingsPrice;
+
+                                // LẤY ID ĐỊNH DANH (Dùng uniqueCartId nếu có, không thì fallback về id)
+                                const itemIdentifier = item.uniqueCartId || item.id;
+
                                 return (
-                                    <div key={item.id} className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center gap-6 hover:shadow-md transition-shadow">
+                                    <div key={itemIdentifier} className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center gap-6 hover:shadow-md transition-shadow relative">
                                         <div className="w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0 bg-gray-50 rounded-2xl p-2 flex items-center justify-center">
                                             <img src={imageUrl} className="w-full h-full object-contain mix-blend-multiply" alt={item.name} />
                                         </div>
@@ -70,23 +79,31 @@ const Cart = () => {
                                             <p className="text-xs text-blue-600 font-bold uppercase tracking-wider mb-1">
                                                 {item.category?.name || "Sản phẩm"}
                                             </p>
-                                            <h3 className="font-bold text-gray-900 text-lg mb-2 line-clamp-1">{item.name}</h3>
+                                            <h3 className="font-bold text-gray-900 text-lg mb-1 line-clamp-1">{item.name}</h3>
+
+                                            {/* HIỂN THỊ DANH SÁCH TOPPING NẾU CÓ */}
+                                            {item.toppings && item.toppings.length > 0 && (
+                                                <p className="text-sm text-gray-500 mb-2 italic">
+                                                    + Topping: {item.toppings.map(t => t.name).join(', ')}
+                                                </p>
+                                            )}
+
                                             <p className="text-lg font-black text-red-600">
-                                                {item.price.toLocaleString('vi-VN')} <span className="text-sm underline text-gray-500">đ</span>
+                                                {currentItemPrice.toLocaleString('vi-VN')} <span className="text-sm underline text-gray-500">đ</span>
                                             </p>
                                         </div>
 
                                         <div className="flex items-center justify-between w-full sm:w-auto gap-6 sm:flex-col sm:items-end sm:gap-4 mt-4 sm:mt-0">
                                             <div className="flex items-center bg-gray-50 rounded-full border border-gray-200 p-1">
-                                                <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white text-gray-600">
+                                                <button onClick={() => updateQuantity(itemIdentifier, item.quantity - 1)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white text-gray-600">
                                                     <Minus size={14} />
                                                 </button>
                                                 <span className="w-8 text-center font-bold text-sm">{item.quantity}</span>
-                                                <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white text-gray-600">
+                                                <button onClick={() => updateQuantity(itemIdentifier, item.quantity + 1)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white text-gray-600">
                                                     <Plus size={14} />
                                                 </button>
                                             </div>
-                                            <button onClick={() => removeFromCart(item.id)} className="text-gray-400 hover:text-red-500 p-2">
+                                            <button onClick={() => removeFromCart(itemIdentifier)} className="text-gray-400 hover:text-red-500 p-2 absolute sm:relative top-2 right-2 sm:top-0 sm:right-0">
                                                 <Trash2 size={18} />
                                             </button>
                                         </div>
@@ -111,7 +128,6 @@ const Cart = () => {
                                     </span>
                                 </div>
 
-                                {/* SỬA Ở ĐÂY: Thêm sự kiện onClick cho nút bấm */}
                                 <button
                                     onClick={handleCheckout}
                                     className="w-full bg-gray-900 text-white py-4 px-6 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 hover:bg-blue-600 hover:shadow-lg transition-all mb-4"

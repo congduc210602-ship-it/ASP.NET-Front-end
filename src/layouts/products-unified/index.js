@@ -97,7 +97,17 @@ function ProductsUnified() {
       imageUrl: item.avatar || "", // Đồng bộ: backend trả 'avatar'
     });
     setSelectedFile(null);
-    setPreviewUrl(item.avatar || "");
+    // --- PHẦN SỬA LỖI ẢNH PREVIEW KHI MỞ MODAL SỬA ---
+    const BACKEND_URL = "https://asp-net-2.onrender.com";
+    let fullPreviewUrl = "";
+    if (item.avatar) {
+      fullPreviewUrl = item.avatar.startsWith("http")
+        ? item.avatar
+        : `${BACKEND_URL}${item.avatar}`;
+    }
+    setPreviewUrl(fullPreviewUrl);
+    // ------------------------------------------------
+
     setIsModalOpen(true);
   };
 
@@ -299,7 +309,11 @@ function ProductsUnified() {
             <MDBox>
               <MDBox display="flex" justifyContent="center" mb={3}>
                 <img
-                  src={viewProduct.avatar || "https://placehold.co/150"}
+                  src={
+                    viewProduct.avatar
+                      ? (viewProduct.avatar.startsWith("http") ? viewProduct.avatar : `${BACKEND_URL}${viewProduct.avatar}`)
+                      : "https://placehold.co/150"
+                  }
                   alt={viewProduct.name}
                   style={{ width: "200px", height: "200px", objectFit: "cover", borderRadius: "12px", boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}
                 />
